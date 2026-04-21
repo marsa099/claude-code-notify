@@ -41,6 +41,13 @@ if [ "$INSTANCE_TYPE" = "tmux" ]; then
     tmux select-window -t "$PANE" 2>/dev/null
     tmux select-pane -t "$PANE" 2>/dev/null
     cn_log "[goto] focused pane=$PANE session=$SESSION target=$TARGET [tmux]"
+    # Clean up input notifications after goto (we're now focused)
+    PROMPT_TYPE=$(grep '^prompt_type=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
+    if [ "$PROMPT_TYPE" = "input" ]; then
+        NID_FILE="$CN_STATE_DIR/notif-id-${TARGET}"
+        [ -f "$NID_FILE" ] && cn_notify_close "$(cat "$NID_FILE")"
+        rm -f "$STATE_FILE" "$NID_FILE" "$CN_STATE_DIR/watcher-${TARGET}.pid"
+    fi
 else
     WINDOW_ID=$(grep '^window_id=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
     if [ -z "$WINDOW_ID" ]; then
@@ -49,4 +56,11 @@ else
     fi
     cn_wm_focus_wid "$WINDOW_ID"
     cn_log "[goto] focused window=$WINDOW_ID target=$TARGET [direct]"
+    # Clean up input notifications after goto
+    PROMPT_TYPE=$(grep '^prompt_type=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
+    if [ "$PROMPT_TYPE" = "input" ]; then
+        NID_FILE="$CN_STATE_DIR/notif-id-${TARGET}"
+        [ -f "$NID_FILE" ] && cn_notify_close "$(cat "$NID_FILE")"
+        rm -f "$STATE_FILE" "$NID_FILE" "$CN_STATE_DIR/watcher-${TARGET}.pid"
+    fi
 fi

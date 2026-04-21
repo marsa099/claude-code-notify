@@ -33,8 +33,14 @@ fi
 STATE_FILE="$CN_STATE_DIR/$LATEST"
 INSTANCE_TYPE=$(grep '^instance_type=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
 
-# Remap keys for Yes/No prompts
+# Skip input-waiting notifications (no keystroke to send)
 PROMPT_TYPE=$(grep '^prompt_type=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
+if [ "$PROMPT_TYPE" = "input" ]; then
+    cn_log "[respond] skipped: input notification, not a permission prompt"
+    exit 0
+fi
+
+# Remap keys for Yes/No prompts
 SEND_KEY="$KEY"
 if [ "$PROMPT_TYPE" = "yesno" ]; then
     case "$KEY" in
