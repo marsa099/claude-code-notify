@@ -71,7 +71,7 @@ if [ -f "$SETTINGS_FILE" ]; then
         echo "Hooks already configured in $SETTINGS_FILE — nothing to do."
         exit 0
     fi
-    cp "$SETTINGS_FILE" "${SETTINGS_FILE}.bak"
+    cp "$SETTINGS_FILE" "''${SETTINGS_FILE}.bak"
     jq '
         .hooks //= {} |
         .hooks.PermissionRequest //= [] |
@@ -89,8 +89,8 @@ if [ -f "$SETTINGS_FILE" ]; then
             "matcher": "",
             "hooks": [{"type": "command", "command": "claude-notify-notification"}]
         }]
-    ' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
-    echo "Hooks merged into $SETTINGS_FILE (backup at ${SETTINGS_FILE}.bak)"
+    ' "$SETTINGS_FILE" > "''${SETTINGS_FILE}.tmp" && mv "''${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    echo "Hooks merged into $SETTINGS_FILE (backup at ''${SETTINGS_FILE}.bak)"
 else
     jq -n '{
         hooks: {
