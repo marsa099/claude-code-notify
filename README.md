@@ -44,16 +44,6 @@ Any terminal works. Set `CN_TERMINAL_APP_ID` in config to match yours:
 
 ## Install
 
-### Manual
-
-```bash
-git clone https://github.com/marsa099/claude-code-notify.git
-cd claude-code-notify
-bash install.sh
-```
-
-Edit `~/.config/claude-notify/config` to set your WM, terminal, and notification backend, then add keybindings to your WM config (see `keybindings/` for examples).
-
 ### NixOS (flake)
 
 Add to your `flake.nix` inputs:
@@ -70,26 +60,42 @@ environment.systemPackages = [
 ];
 ```
 
-Rebuild, then run the setup command once to configure Claude Code's hooks:
+Rebuild. Then configure Claude Code's hooks — either run `claude-notify-setup` or add them manually to `~/.claude/settings.json`:
 
-```bash
-claude-notify-setup
+```json
+{
+  "hooks": {
+    "PermissionRequest": [{ "matcher": "", "hooks": [{ "type": "command", "command": "claude-notify-permission-request" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "claude-notify-post-tool-use" }] }],
+    "Notification": [{ "matcher": "", "hooks": [{ "type": "command", "command": "claude-notify-notification" }] }]
+  }
+}
 ```
 
-For WM keybindings, use the wrapper binaries directly (e.g., `claude-notify-navigate` instead of `bash ~/.config/claude-notify/scripts/navigate.sh`). See `keybindings/` for examples.
+Finally, add WM keybindings using the wrapper binaries (e.g., `claude-notify-navigate`). See `keybindings/` for ready-to-use examples.
 
 ### Standalone Nix
 
 ```bash
 nix profile install github:marsa099/claude-code-notify
-claude-notify-setup
+claude-notify-setup  # or add hooks to settings.json manually (see above)
 ```
+
+### Manual (non-Nix)
+
+```bash
+git clone https://github.com/marsa099/claude-code-notify.git
+cd claude-code-notify
+bash install.sh
+```
+
+The install script copies scripts to `~/.config/claude-notify/` and configures hooks in `~/.claude/settings.json`. Then add WM keybindings — see `keybindings/` for examples.
 
 ## Configuration
 
 Configuration is optional — sensible defaults are built in (dunst, no WM detection).
 
-To override defaults, create `~/.config/claude-notify/config` with only the settings you want to change:
+To override defaults, create `~/.config/claude-notify/config` with only the settings you want to change. New settings added in updates automatically use their defaults without requiring config changes.
 
 ```bash
 # Notification backend: dunst | generic
@@ -131,7 +137,7 @@ Claude Code fires hook events that trigger shell scripts:
 1. **PermissionRequest** fires instantly when Claude needs permission. The hook saves tool info, builds a styled notification, and starts a background watcher.
 2. **PostToolUse** fires after a tool completes. The hook cleans up the notification and promotes the next pending instance.
 3. **Notification** is Claude Code's built-in notification (delayed ~8s). The hook suppresses it when a styled permission notification is already showing.
-4. The **background watcher** monitors the tmux pane for "Esc to cancel" disappearing — handling the case where the user responds directly in the TUI.
+4. The **background watcher** monitors the tmux pane for the permission prompt disappearing — handling the case where the user responds directly in the TUI.
 
 ## Adding a notification backend
 
