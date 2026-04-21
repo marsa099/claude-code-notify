@@ -59,11 +59,24 @@
 #!/bin/bash
 set -euo pipefail
 
-CN_SHARE_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")/share/claude-notify"
 INSTALL_DIR="$HOME/.config/claude-notify"
 SETTINGS_FILE="$HOME/.claude/settings.json"
 
+# Find the share dir via the stable system profile path (survives rebuilds)
+# Fallback to resolving from the binary location
+CN_SHARE_DIR=""
+for candidate in /run/current-system/sw/share/claude-notify "$HOME/.nix-profile/share/claude-notify"; do
+    if [ -d "$candidate" ]; then
+        CN_SHARE_DIR="$candidate"
+        break
+    fi
+done
+if [ -z "$CN_SHARE_DIR" ]; then
+    CN_SHARE_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")/share/claude-notify"
+fi
+
 echo "Setting up claude-code-notify (Nix)..."
+echo "Using: $CN_SHARE_DIR"
 
 # Symlink share dir for hook access
 mkdir -p "$INSTALL_DIR"
