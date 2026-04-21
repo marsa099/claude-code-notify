@@ -50,6 +50,6 @@ fi
 if cn_should_skip_notification; then
     cn_log "[notification-hook] skipped: terminal focused"
 else
-    cn_notify "$TITLE" "$MESSAGE" normal 0
+    cn_notify "$TITLE" "$MESSAGE" normal 10000
     cn_log "[notification-hook] sent notification"
 fi
