@@ -280,12 +280,24 @@ cn_keybinding_text() {
     fi
 }
 
-# Build full notification body with keybindings and pending count
+# Build full notification body with keybindings and pending count.
+# Reads prompt_type from the state file to handle both permission and input types.
 cn_build_full_notification() {
-    local id="$1" prompt_type="${2:-permission}"
+    local id="$1"
+    local state_file="$CN_STATE_DIR/$id"
+    local prompt_type
+    prompt_type=$(grep '^prompt_type=' "$state_file" 2>/dev/null | cut -d= -f2)
+    [ -z "$prompt_type" ] && prompt_type="permission"
     local body
-    body=$(cn_build_tool_body "$id")
-    body="$body\n\n$(cn_keybinding_text "$prompt_type")"
+    if [ "$prompt_type" = "input" ]; then
+        local msg
+        msg=$(grep '^message=' "$state_file" 2>/dev/null | cut -d= -f2-)
+        body="<i>${msg:-Waiting for input}</i>"
+        body="$body\n\nGo to <b>($CN_KEY_GOTO)</b>\nNext <b>($CN_KEY_NEXT)</b>"
+    else
+        body=$(cn_build_tool_body "$id")
+        body="$body\n\n$(cn_keybinding_text "$prompt_type")"
+    fi
     local total
     total=$(find "$CN_STATE_DIR" -maxdepth 1 -type f ! -name '.*' ! -name '*-*' ! -name '*.json' 2>/dev/null | wc -l)
     local extra=$((total - 1))

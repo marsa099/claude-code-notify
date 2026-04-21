@@ -2,8 +2,8 @@
 # Hook: Notification (fallback)
 # Fires for all Claude Code notification types. If a styled permission
 # notification already exists for this instance, leaves it alone.
-# For "waiting for input" messages: saves state for goto/navigate and
-# starts a watcher that closes the notification when terminal is focused.
+# For "waiting for input" messages: saves state and integrates with the
+# single-notification system via .last-navigate.
 
 CN_DIR="${CN_DIR:-$HOME/.config/claude-notify}"
 source "$CN_DIR/lib/common.sh"
@@ -29,17 +29,20 @@ if [ "$HAS_ACTIVE_PERMISSION" = true ]; then
             # Claude moved on — clean up stale permission notification
             NID_FILE="$CN_STATE_DIR/notif-id-${ID}"
             if [ -f "$NID_FILE" ]; then
-                nid_val=$(cat "$NID_FILE")
-                cn_notify_close "$nid_val"
-                cn_log "[notification-hook] cleaned stale notification id=$nid_val for instance=$ID"
+                cn_notify_close "$(cat "$NID_FILE")"
+                rm -f "$NID_FILE"
             fi
-            rm -f "$CN_STATE_DIR/$ID" "$CN_STATE_DIR/tool-info-${ID}.json" "$NID_FILE"
+            WATCHER_PID_FILE="$CN_STATE_DIR/watcher-${ID}.pid"
+            if [ -f "$WATCHER_PID_FILE" ]; then
+                kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null
+                rm -f "$WATCHER_PID_FILE"
+            fi
+            rm -f "$CN_STATE_DIR/$ID" "$CN_STATE_DIR/tool-info-${ID}.json"
+            cn_log "[notification-hook] cleaned stale permission for instance=$ID"
+            # If this was the active notification, clear it so we create fresh
             NAV="$CN_STATE_DIR/.last-navigate"
-            if [ -f "$NAV" ]; then
-                nav_val=$(cat "$NAV")
-                if [ "$nav_val" = "$ID" ] || [ -z "$(cn_pending_ids)" ]; then
-                    rm -f "$NAV"
-                fi
+            if [ -f "$NAV" ] && [ "$(cat "$NAV")" = "$ID" ]; then
+                rm -f "$NAV"
             fi
             ;;
         *)
@@ -80,6 +83,11 @@ if [ -n "$ID" ]; then
         cn_notify_close "$(cat "$OLD_NID_FILE")"
         rm -f "$OLD_NID_FILE"
     fi
+    OLD_WATCHER="$CN_STATE_DIR/watcher-${INPUT_STATE_ID}.pid"
+    if [ -f "$OLD_WATCHER" ]; then
+        kill "$(cat "$OLD_WATCHER")" 2>/dev/null
+        rm -f "$OLD_WATCHER"
+    fi
     rm -f "$CN_STATE_DIR/$INPUT_STATE_ID"
 
     # Save state for goto/navigate
@@ -93,33 +101,40 @@ if [ -n "$ID" ]; then
     } > "$CN_STATE_DIR/$INPUT_STATE_ID"
 fi
 
-# Build notification body
-BODY="<i>$MESSAGE</i>"
-BODY="$BODY\n\nGo to <b>($CN_KEY_GOTO)</b>"
-PENDING=$(cn_pending_ids)
-if [ -n "$PENDING" ]; then
-    COUNT=$(echo "$PENDING" | wc -l)
-    BODY="$BODY\nNext <b>($CN_KEY_NEXT)</b>"
-    BODY="$BODY\n\n<i>+${COUNT} permissions pending</i>"
+# Integrate with single-notification system via .last-navigate
+LAST_NAV="$CN_STATE_DIR/.last-navigate"
+if [ ! -f "$LAST_NAV" ]; then
+    # No active notification — this input becomes the active one
+    BODY=$(cn_build_full_notification "$INPUT_STATE_ID")
+    NOTIF_ID=$(cn_notify "> Claude - ${LABEL:-notification}" "$BODY" critical 0)
+    [ -n "$INPUT_STATE_ID" ] && echo "$INPUT_STATE_ID" > "$LAST_NAV"
+    [ -n "$NOTIF_ID" ] && [ -n "$INPUT_STATE_ID" ] && echo "$NOTIF_ID" > "$CN_STATE_DIR/notif-id-${INPUT_STATE_ID}"
+    cn_log "[notification-hook] created active notification id='$NOTIF_ID'"
+else
+    # Update existing active notification with new count
+    ACTIVE_ID=$(cat "$LAST_NAV")
+    ACTIVE_LABEL=$(grep '^label=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
+    [ -z "$ACTIVE_LABEL" ] && ACTIVE_LABEL="claude:?"
+    BODY=$(cn_build_full_notification "$ACTIVE_ID")
+    REPLACE_ID_FILE="$CN_STATE_DIR/notif-id-${ACTIVE_ID}"
+    REPLACE_ID=""
+    [ -f "$REPLACE_ID_FILE" ] && REPLACE_ID=$(cat "$REPLACE_ID_FILE")
+    NOTIF_ID=$(cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0 "$REPLACE_ID")
+    [ -n "$NOTIF_ID" ] && echo "$NOTIF_ID" > "$REPLACE_ID_FILE"
+    cn_log "[notification-hook] updated active count id='$NOTIF_ID' active=$ACTIVE_ID"
 fi
 
-NOTIF_ID=$(cn_notify "> Claude - ${LABEL:-notification}" "$BODY" normal 0)
-cn_log "[notification-hook] sent notification id='$NOTIF_ID'"
-
-# Save notification ID for cleanup
-if [ -n "$INPUT_STATE_ID" ] && [ -n "$NOTIF_ID" ]; then
-    echo "$NOTIF_ID" > "$CN_STATE_DIR/notif-id-${INPUT_STATE_ID}"
-
-    # Background watcher: close when terminal is focused
+# Background watcher: close when terminal is focused, using cleanup-instance
+# for proper promotion of next pending item
+if [ -n "$INPUT_STATE_ID" ]; then
     WATCHER_PID_FILE="$CN_STATE_DIR/watcher-${INPUT_STATE_ID}.pid"
     [ -f "$WATCHER_PID_FILE" ] && kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null
     (
         sleep 2
         while [ -f "$CN_STATE_DIR/$INPUT_STATE_ID" ]; do
             if cn_should_skip_notification; then
-                cn_notify_close "$NOTIF_ID"
-                rm -f "$CN_STATE_DIR/$INPUT_STATE_ID" "$CN_STATE_DIR/notif-id-${INPUT_STATE_ID}"
-                cn_log "[notification-hook] watcher: closed input notification for $ID (terminal focused)"
+                bash "$CN_DIR/hooks/cleanup-instance.sh" "$INPUT_STATE_ID"
+                cn_log "[notification-hook] watcher: closed input notification for $INPUT_STATE_ID (terminal focused)"
                 break
             fi
             sleep 2

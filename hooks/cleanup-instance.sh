@@ -14,6 +14,12 @@ NID_FILE="$CN_STATE_DIR/notif-id-${ID}"
 if [ -f "$NID_FILE" ]; then
     cn_notify_close "$(cat "$NID_FILE")"
 fi
+# Kill watcher if running
+WATCHER_PID_FILE="$CN_STATE_DIR/watcher-${ID}.pid"
+if [ -f "$WATCHER_PID_FILE" ]; then
+    kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null
+    rm -f "$WATCHER_PID_FILE"
+fi
 rm -f "$CN_STATE_DIR/$ID" "$CN_STATE_DIR/tool-info-${ID}.json" "$NID_FILE"
 
 NAV="$CN_STATE_DIR/.last-navigate"
