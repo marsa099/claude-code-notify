@@ -54,88 +54,57 @@
                   --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgs.coreutils pkgs.gnugrep pkgs.tmux pkgs.procps ]}
               done
 
-              # Setup script
+              # Setup script — only configures ~/.claude/settings.json
               cat > $out/bin/claude-notify-setup <<'SETUP_EOF'
 #!/bin/bash
 set -euo pipefail
 
-INSTALL_DIR="$HOME/.config/claude-notify"
 SETTINGS_FILE="$HOME/.claude/settings.json"
 
-# Find the share dir via the stable system profile path (survives rebuilds)
-# Fallback to resolving from the binary location
-CN_SHARE_DIR=""
-for candidate in /run/current-system/sw/share/claude-notify "$HOME/.nix-profile/share/claude-notify"; do
-    if [ -d "$candidate" ]; then
-        CN_SHARE_DIR="$candidate"
-        break
-    fi
-done
-if [ -z "$CN_SHARE_DIR" ]; then
-    CN_SHARE_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")/share/claude-notify"
-fi
+echo "Setting up claude-code-notify..."
 
-echo "Setting up claude-code-notify (Nix)..."
-echo "Using: $CN_SHARE_DIR"
-
-# Symlink share dir for hook access
-mkdir -p "$INSTALL_DIR"
-for dir in lib hooks scripts icons; do
-    rm -rf "$INSTALL_DIR/$dir"
-    ln -sf "$CN_SHARE_DIR/$dir" "$INSTALL_DIR/$dir"
-done
-
-# Create config if missing
-if [ ! -f "$INSTALL_DIR/config" ]; then
-    cp "$CN_SHARE_DIR/config.example" "$INSTALL_DIR/config"
-    echo "Created config at $INSTALL_DIR/config — edit to match your setup."
-else
-    echo "Config exists at $INSTALL_DIR/config — skipping."
-fi
-
-# Configure Claude Code hooks
+# Configure Claude Code hooks in settings.json
 mkdir -p "$(dirname "$SETTINGS_FILE")"
-HOOK_CMD_PREFIX="bash $INSTALL_DIR/hooks"
 
 if [ -f "$SETTINGS_FILE" ]; then
     if grep -q "claude-notify" "$SETTINGS_FILE" 2>/dev/null; then
-        echo "Hooks already configured — skipping."
-    else
-        cp "$SETTINGS_FILE" "${SETTINGS_FILE}.bak"
-        jq --arg prefix "$HOOK_CMD_PREFIX" '
-            .hooks //= {} |
-            .hooks.PermissionRequest //= [] |
-            .hooks.PostToolUse //= [] |
-            .hooks.Notification //= [] |
-            .hooks.PermissionRequest += [{
-                "matcher": "",
-                "hooks": [{"type": "command", "command": ("bash " + $prefix + "/permission-request.sh")}]
-            }] |
-            .hooks.PostToolUse += [{
-                "matcher": "",
-                "hooks": [{"type": "command", "command": ("bash " + $prefix + "/post-tool-use.sh")}]
-            }] |
-            .hooks.Notification += [{
-                "matcher": "",
-                "hooks": [{"type": "command", "command": ("bash " + $prefix + "/notification.sh")}]
-            }]
-        ' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
-        echo "Hooks merged into $SETTINGS_FILE (backup at ${SETTINGS_FILE}.bak)"
+        echo "Hooks already configured in $SETTINGS_FILE — nothing to do."
+        exit 0
     fi
+    cp "$SETTINGS_FILE" "${SETTINGS_FILE}.bak"
+    jq '
+        .hooks //= {} |
+        .hooks.PermissionRequest //= [] |
+        .hooks.PostToolUse //= [] |
+        .hooks.Notification //= [] |
+        .hooks.PermissionRequest += [{
+            "matcher": "",
+            "hooks": [{"type": "command", "command": "claude-notify-permission-request"}]
+        }] |
+        .hooks.PostToolUse += [{
+            "matcher": "",
+            "hooks": [{"type": "command", "command": "claude-notify-post-tool-use"}]
+        }] |
+        .hooks.Notification += [{
+            "matcher": "",
+            "hooks": [{"type": "command", "command": "claude-notify-notification"}]
+        }]
+    ' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    echo "Hooks merged into $SETTINGS_FILE (backup at ${SETTINGS_FILE}.bak)"
 else
-    jq -n --arg prefix "$HOOK_CMD_PREFIX" '{
+    jq -n '{
         hooks: {
             PermissionRequest: [{
                 matcher: "",
-                hooks: [{type: "command", command: ("bash " + $prefix + "/permission-request.sh")}]
+                hooks: [{type: "command", command: "claude-notify-permission-request"}]
             }],
             PostToolUse: [{
                 matcher: "",
-                hooks: [{type: "command", command: ("bash " + $prefix + "/post-tool-use.sh")}]
+                hooks: [{type: "command", command: "claude-notify-post-tool-use"}]
             }],
             Notification: [{
                 matcher: "",
-                hooks: [{type: "command", command: ("bash " + $prefix + "/notification.sh")}]
+                hooks: [{type: "command", command: "claude-notify-notification"}]
             }]
         }
     }' > "$SETTINGS_FILE"
@@ -143,10 +112,10 @@ else
 fi
 
 echo ""
-echo "Done! Next steps:"
-echo "  1. Edit $INSTALL_DIR/config"
-echo "  2. Add keybindings (see: $CN_SHARE_DIR/keybindings/)"
-echo "  3. Restart Claude Code"
+echo "Done! Optionally:"
+echo "  - Create ~/.config/claude-notify/config to override defaults (see config.example)"
+echo "  - Add WM keybindings for navigate/goto/respond (see keybindings/)"
+echo "  - Restart Claude Code to pick up the hooks"
 SETUP_EOF
               chmod +x $out/bin/claude-notify-setup
             '';

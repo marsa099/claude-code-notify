@@ -70,13 +70,13 @@ environment.systemPackages = [
 ];
 ```
 
-Rebuild, then run the setup command once:
+Rebuild, then run the setup command once to configure Claude Code's hooks:
 
 ```bash
 claude-notify-setup
 ```
 
-Edit `~/.config/claude-notify/config` and add WM keybindings.
+For WM keybindings, use the wrapper binaries directly (e.g., `claude-notify-navigate` instead of `bash ~/.config/claude-notify/scripts/navigate.sh`). See `keybindings/` for examples.
 
 ### Standalone Nix
 
@@ -87,7 +87,9 @@ claude-notify-setup
 
 ## Configuration
 
-Config lives at `~/.config/claude-notify/config`:
+Configuration is optional — sensible defaults are built in (dunst, no WM detection).
+
+To override defaults, create `~/.config/claude-notify/config` with only the settings you want to change:
 
 ```bash
 # Notification backend: dunst | generic
