@@ -111,16 +111,17 @@ if [ ! -f "$LAST_NAV" ]; then
     [ -n "$NOTIF_ID" ] && [ -n "$INPUT_STATE_ID" ] && echo "$NOTIF_ID" > "$CN_STATE_DIR/notif-id-${INPUT_STATE_ID}"
     cn_log "[notification-hook] created active notification id='$NOTIF_ID'"
 else
+    # Close all tracked notifications so only one is visible
+    for nf in "$CN_STATE_DIR"/notif-id-*; do
+        [ -f "$nf" ] && cn_notify_close "$(cat "$nf")"
+    done
     # Update existing active notification with new count
     ACTIVE_ID=$(cat "$LAST_NAV")
     ACTIVE_LABEL=$(grep '^label=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
     [ -z "$ACTIVE_LABEL" ] && ACTIVE_LABEL="claude:?"
     BODY=$(cn_build_full_notification "$ACTIVE_ID")
-    REPLACE_ID_FILE="$CN_STATE_DIR/notif-id-${ACTIVE_ID}"
-    REPLACE_ID=""
-    [ -f "$REPLACE_ID_FILE" ] && REPLACE_ID=$(cat "$REPLACE_ID_FILE")
-    NOTIF_ID=$(cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0 "$REPLACE_ID")
-    [ -n "$NOTIF_ID" ] && echo "$NOTIF_ID" > "$REPLACE_ID_FILE"
+    NOTIF_ID=$(cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0)
+    [ -n "$NOTIF_ID" ] && echo "$NOTIF_ID" > "$CN_STATE_DIR/notif-id-${ACTIVE_ID}"
     cn_log "[notification-hook] updated active count id='$NOTIF_ID' active=$ACTIVE_ID"
 fi
 
