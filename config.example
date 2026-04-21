@@ -1,0 +1,29 @@
+# claude-code-notify configuration
+# Copy to ~/.config/claude-notify/config and edit to match your setup.
+
+# Notification backend: dunst | generic
+# dunst: full support (persistent, close, replace, icons)
+# generic: basic notify-send (no close/replace, limited functionality)
+CN_NOTIFY_BACKEND=dunst
+
+# Window manager: niri | sway | hyprland | none
+# Used for focus detection (skip notifications when terminal is visible)
+# and for "go to" functionality (focus terminal window)
+# none: always send notifications, "go to" only switches tmux pane
+CN_WM_BACKEND=niri
+
+# Terminal app ID for WM focus detection and "go to"
+# Common values: com.mitchellh.ghostty, Alacritty, kitty, foot, org.wezfurlong.wezterm
+CN_TERMINAL_APP_ID=com.mitchellh.ghostty
+
+# Input method for direct (non-tmux) terminal response
+# wtype: Wayland (default), xdotool: X11
+CN_INPUT_METHOD=wtype
+
+# Keybinding labels shown in notifications
+# Change these to match your actual WM keybindings
+CN_KEY_ALLOW="Ctrl+Super+Y"
+CN_KEY_ALWAYS_ALLOW="Ctrl+Super+A"
+CN_KEY_DENY="Ctrl+Super+N"
+CN_KEY_NEXT="Ctrl+Super+P"
+CN_KEY_GOTO="Ctrl+Super+O"

@@ -1,0 +1,14 @@
+// claude-code-notify keybindings for niri
+// Add these to your niri config (typically ~/.config/niri/config.kdl)
+// inside the binds { } block.
+
+// Allow permission
+Ctrl+Super+Y { spawn "bash" "$HOME/.config/claude-notify/scripts/respond.sh" "1"; }
+// Always Allow
+Ctrl+Super+A { spawn "bash" "$HOME/.config/claude-notify/scripts/respond.sh" "2"; }
+// Deny permission
+Ctrl+Super+N { spawn "bash" "$HOME/.config/claude-notify/scripts/respond.sh" "3"; }
+// Next notification
+Ctrl+Super+P { spawn "bash" "$HOME/.config/claude-notify/scripts/navigate.sh"; }
+// Go to Claude instance
+Ctrl+Super+O { spawn "bash" "$HOME/.config/claude-notify/scripts/goto.sh"; }
