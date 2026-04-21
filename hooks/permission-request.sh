@@ -10,6 +10,9 @@ source "$CN_DIR/lib/common.sh"
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 
+# Skip non-permission events (e.g. feedback surveys)
+[ "$TOOL_NAME" = "AskUserQuestion" ] && exit 0
+
 ID=$(cn_instance_id)
 [ -z "$ID" ] && exit 0
 TYPE=$(cn_instance_type)
