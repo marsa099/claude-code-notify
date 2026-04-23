@@ -27,11 +27,7 @@ if [ "$HAS_ACTIVE_PERMISSION" = true ]; then
     case "$MESSAGE" in
         *"waiting for your input"*)
             # Claude moved on — clean up stale permission notification
-            NID_FILE="$CN_STATE_DIR/notif-id-${ID}"
-            if [ -f "$NID_FILE" ]; then
-                cn_notify_close "$(cat "$NID_FILE")"
-                rm -f "$NID_FILE"
-            fi
+            cn_notify_close
             WATCHER_PID_FILE="$CN_STATE_DIR/watcher-${ID}.pid"
             if [ -f "$WATCHER_PID_FILE" ]; then
                 kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null
@@ -78,11 +74,6 @@ if [ -n "$ID" ]; then
     [ "$TYPE" = "direct" ] && TERMINAL_WID=$(cn_wm_find_terminal_wid)
 
     # Clean up any previous input state for this instance
-    OLD_NID_FILE="$CN_STATE_DIR/notif-id-${INPUT_STATE_ID}"
-    if [ -f "$OLD_NID_FILE" ]; then
-        cn_notify_close "$(cat "$OLD_NID_FILE")"
-        rm -f "$OLD_NID_FILE"
-    fi
     OLD_WATCHER="$CN_STATE_DIR/watcher-${INPUT_STATE_ID}.pid"
     if [ -f "$OLD_WATCHER" ]; then
         kill "$(cat "$OLD_WATCHER")" 2>/dev/null
@@ -106,23 +97,17 @@ LAST_NAV="$CN_STATE_DIR/.last-navigate"
 if [ ! -f "$LAST_NAV" ]; then
     # No active notification — this input becomes the active one
     BODY=$(cn_build_full_notification "$INPUT_STATE_ID")
-    NOTIF_ID=$(cn_notify "> Claude - ${LABEL:-notification}" "$BODY" critical 0)
+    cn_notify "> Claude - ${LABEL:-notification}" "$BODY" critical 0
     [ -n "$INPUT_STATE_ID" ] && echo "$INPUT_STATE_ID" > "$LAST_NAV"
-    [ -n "$NOTIF_ID" ] && [ -n "$INPUT_STATE_ID" ] && echo "$NOTIF_ID" > "$CN_STATE_DIR/notif-id-${INPUT_STATE_ID}"
-    cn_log "[notification-hook] created active notification id='$NOTIF_ID'"
+    cn_log "[notification-hook] created active notification"
 else
-    # Close all tracked notifications so only one is visible
-    for nf in "$CN_STATE_DIR"/notif-id-*; do
-        [ -f "$nf" ] && cn_notify_close "$(cat "$nf")"
-    done
     # Update existing active notification with new count
     ACTIVE_ID=$(cat "$LAST_NAV")
     ACTIVE_LABEL=$(grep '^label=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
     [ -z "$ACTIVE_LABEL" ] && ACTIVE_LABEL="claude:?"
     BODY=$(cn_build_full_notification "$ACTIVE_ID")
-    NOTIF_ID=$(cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0)
-    [ -n "$NOTIF_ID" ] && echo "$NOTIF_ID" > "$CN_STATE_DIR/notif-id-${ACTIVE_ID}"
-    cn_log "[notification-hook] updated active count id='$NOTIF_ID' active=$ACTIVE_ID"
+    cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0
+    cn_log "[notification-hook] updated active notification active=$ACTIVE_ID"
 fi
 
 # Background watcher: close when terminal is focused, using cleanup-instance

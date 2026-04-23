@@ -9,18 +9,13 @@ source "$CN_DIR/lib/common.sh"
 ID="$1"
 [ -z "$ID" ] && exit 0
 
-# Close this instance's notification
-NID_FILE="$CN_STATE_DIR/notif-id-${ID}"
-if [ -f "$NID_FILE" ]; then
-    cn_notify_close "$(cat "$NID_FILE")"
-fi
 # Kill watcher if running
 WATCHER_PID_FILE="$CN_STATE_DIR/watcher-${ID}.pid"
 if [ -f "$WATCHER_PID_FILE" ]; then
     kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null
     rm -f "$WATCHER_PID_FILE"
 fi
-rm -f "$CN_STATE_DIR/$ID" "$CN_STATE_DIR/tool-info-${ID}.json" "$NID_FILE"
+rm -f "$CN_STATE_DIR/$ID" "$CN_STATE_DIR/tool-info-${ID}.json"
 
 NAV="$CN_STATE_DIR/.last-navigate"
 nav_val=""
@@ -29,6 +24,7 @@ REMAINING=$(find "$CN_STATE_DIR" -maxdepth 1 -type f ! -name '.*' ! -name '*-*' 
 
 if [ -z "$REMAINING" ]; then
     rm -f "$NAV"
+    cn_notify_close
     cn_log "[cleanup] instance=$ID no more pending"
     exit 0
 fi
@@ -46,13 +42,7 @@ TARGET_LABEL=$(grep '^label=' "$CN_STATE_DIR/$TARGET_ID" 2>/dev/null | cut -d= -
 [ -z "$TARGET_LABEL" ] && TARGET_LABEL="claude:?"
 
 BODY=$(cn_build_full_notification "$TARGET_ID")
-
-REPLACE_ID_FILE="$CN_STATE_DIR/notif-id-${TARGET_ID}"
-REPLACE_ID=""
-[ -f "$REPLACE_ID_FILE" ] && REPLACE_ID=$(cat "$REPLACE_ID_FILE")
-
-NOTIF_ID=$(cn_notify "> Claude - $TARGET_LABEL" "$BODY" critical 0 "$REPLACE_ID")
-[ -n "$NOTIF_ID" ] && echo "$NOTIF_ID" > "$REPLACE_ID_FILE"
+cn_notify "> Claude - $TARGET_LABEL" "$BODY" critical 0
 
 total=$(echo "$REMAINING" | wc -l)
-cn_log "[cleanup] instance=$ID promoted=$TARGET_ID notif=$NOTIF_ID remaining=$total"
+cn_log "[cleanup] instance=$ID promoted=$TARGET_ID remaining=$total"

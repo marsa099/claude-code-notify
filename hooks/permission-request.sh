@@ -58,25 +58,16 @@ else
     LAST_NAV="$CN_STATE_DIR/.last-navigate"
     if [ ! -f "$LAST_NAV" ]; then
         BODY=$(cn_build_full_notification "$ID")
-        REPLACE_ID_FILE="$CN_STATE_DIR/notif-id-${ID}"
-        REPLACE_ID=""
-        [ -f "$REPLACE_ID_FILE" ] && REPLACE_ID=$(cat "$REPLACE_ID_FILE")
-        NOTIF_ID=$(cn_notify "> Claude - $LABEL" "$BODY" critical 0 "$REPLACE_ID")
+        cn_notify "> Claude - $LABEL" "$BODY" critical 0
         echo "$ID" > "$LAST_NAV"
-        [ -n "$NOTIF_ID" ] && echo "$NOTIF_ID" > "$REPLACE_ID_FILE"
-        cn_log "[permission-request] created active notification id='$NOTIF_ID'"
+        cn_log "[permission-request] created active notification"
     else
-        # Close all tracked notifications so only one is visible
-        for nf in "$CN_STATE_DIR"/notif-id-*; do
-            [ -f "$nf" ] && cn_notify_close "$(cat "$nf")"
-        done
         ACTIVE_ID=$(cat "$LAST_NAV")
         ACTIVE_LABEL=$(grep '^label=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
         [ -z "$ACTIVE_LABEL" ] && ACTIVE_LABEL="claude:?"
         BODY=$(cn_build_full_notification "$ACTIVE_ID")
-        NOTIF_ID=$(cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0)
-        [ -n "$NOTIF_ID" ] && echo "$NOTIF_ID" > "$CN_STATE_DIR/notif-id-${ACTIVE_ID}"
-        cn_log "[permission-request] updated active count id='$NOTIF_ID' active=$ACTIVE_ID"
+        cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0
+        cn_log "[permission-request] updated active notification active=$ACTIVE_ID"
     fi
 fi
 

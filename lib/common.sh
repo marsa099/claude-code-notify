@@ -8,6 +8,7 @@ CN_CONFIG="${CN_CONFIG:-$HOME/.config/claude-notify/config}"
 CN_STATE_DIR="/tmp/claude-permissions"
 CN_LOG="$HOME/.cache/claude/hooks.log"
 CN_ICON="${CN_ICON:-$CN_DIR/icons/claude-code.png}"
+CN_NOTIF_ID=999999  # Fixed notification ID — all notifications reuse this to avoid races
 
 # Defaults (overridden by config file)
 CN_NOTIFY_BACKEND="${CN_NOTIFY_BACKEND:-dunst}"
@@ -54,19 +55,16 @@ cn_esc() {
 
 # --- Notification backend ---
 
-# Send a notification. Returns the notification ID on stdout.
-# Args: title body [urgency] [timeout] [replace_id]
+# Send a notification, always replacing the single tracked notification.
+# Args: title body [urgency] [timeout]
 cn_notify() {
-    local title="$1" body="$2" urgency="${3:-critical}" timeout="${4:-0}" replace_id="$5"
+    local title="$1" body="$2" urgency="${3:-critical}" timeout="${4:-0}"
     case "$CN_NOTIFY_BACKEND" in
         dunst)
-            local args=(-u "$urgency" -t "$timeout" -I "$CN_ICON" -p)
-            [ -n "$replace_id" ] && args+=(-r "$replace_id")
-            dunstify "$title" "$body" "${args[@]}" 2>>"$CN_LOG"
+            dunstify "$title" "$body" -u "$urgency" -t "$timeout" -I "$CN_ICON" -r "$CN_NOTIF_ID" 2>>"$CN_LOG"
             ;;
         *)
             notify-send "$title" "$body" -u "$urgency" -t "$timeout" -i "$CN_ICON" 2>/dev/null
-            echo ""
             ;;
     esac
 }
@@ -84,13 +82,10 @@ cn_notify_transient() {
     esac
 }
 
-# Close a notification by ID
+# Close the tracked notification
 cn_notify_close() {
-    local nid="$1"
-    [ -z "$nid" ] && return
     case "$CN_NOTIFY_BACKEND" in
-        dunst) dunstify -C "$nid" 2>/dev/null ;;
-        # generic notify-send has no close support
+        dunst) dunstify -C "$CN_NOTIF_ID" 2>/dev/null ;;
     esac
 }
 

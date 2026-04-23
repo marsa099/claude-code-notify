@@ -75,14 +75,11 @@ else
 fi
 
 # Close notification
-NID_FILE="$CN_STATE_DIR/notif-id-${LATEST}"
-if [ -f "$NID_FILE" ]; then
-    cn_notify_close "$(cat "$NID_FILE")"
-    cn_log "[respond] closing notification for instance=$LATEST"
-fi
+cn_notify_close
+cn_log "[respond] closing notification for instance=$LATEST"
 
 # Clean up state
-rm -f "$STATE_FILE" "$CN_STATE_DIR/tool-info-${LATEST}.json" "$NID_FILE" "$LAST_NAV_FILE"
+rm -f "$STATE_FILE" "$CN_STATE_DIR/tool-info-${LATEST}.json" "$LAST_NAV_FILE"
 
 LABELS=("" "Allow" "Always Allow" "Deny")
 YESNO_LABELS=("" "Yes" "No" "No")

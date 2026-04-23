@@ -31,23 +31,12 @@ fi
 
 echo "$TARGET" > "$LAST_NAV_FILE"
 
-# Close all existing notifications
-for pane_num in "${PANES[@]}"; do
-    old_id_file="$CN_STATE_DIR/notif-id-${pane_num}"
-    if [ -f "$old_id_file" ]; then
-        cn_notify_close "$(cat "$old_id_file")"
-        rm -f "$old_id_file"
-    fi
-done
-
-# Show the target notification
+# Show the target notification (replaces any existing one via fixed ID)
 local_state="$CN_STATE_DIR/$TARGET"
 label=$(grep '^label=' "$local_state" 2>/dev/null | cut -d= -f2)
 [ -z "$label" ] && label="claude:?"
 
 body=$(cn_build_full_notification "$TARGET")
+cn_notify "> Claude - $label" "$body" critical 0
 
-notif_id=$(cn_notify "> Claude - $label" "$body" critical 0)
-[ -n "$notif_id" ] && echo "$notif_id" > "$CN_STATE_DIR/notif-id-${TARGET}"
-
-cn_log "[navigate] selected target=$TARGET (${#PANES[@]} pending) id='$notif_id'"
+cn_log "[navigate] selected target=$TARGET (${#PANES[@]} pending)"

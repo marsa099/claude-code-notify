@@ -18,6 +18,7 @@ if [ -z "$TARGET" ]; then
 fi
 
 if [ -z "$TARGET" ]; then
+    cn_notify_close
     cn_notify_transient "Claude Code" "No pending permissions"
     cn_log "[goto] no pending permissions"
     exit 0
@@ -44,9 +45,8 @@ if [ "$INSTANCE_TYPE" = "tmux" ]; then
     # Clean up input notifications after goto (we're now focused)
     PROMPT_TYPE=$(grep '^prompt_type=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
     if [ "$PROMPT_TYPE" = "input" ]; then
-        NID_FILE="$CN_STATE_DIR/notif-id-${TARGET}"
-        [ -f "$NID_FILE" ] && cn_notify_close "$(cat "$NID_FILE")"
-        rm -f "$STATE_FILE" "$NID_FILE" "$CN_STATE_DIR/watcher-${TARGET}.pid"
+        cn_notify_close
+        rm -f "$STATE_FILE" "$CN_STATE_DIR/watcher-${TARGET}.pid"
     fi
 else
     WINDOW_ID=$(grep '^window_id=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
@@ -59,8 +59,7 @@ else
     # Clean up input notifications after goto
     PROMPT_TYPE=$(grep '^prompt_type=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
     if [ "$PROMPT_TYPE" = "input" ]; then
-        NID_FILE="$CN_STATE_DIR/notif-id-${TARGET}"
-        [ -f "$NID_FILE" ] && cn_notify_close "$(cat "$NID_FILE")"
-        rm -f "$STATE_FILE" "$NID_FILE" "$CN_STATE_DIR/watcher-${TARGET}.pid"
+        cn_notify_close
+        rm -f "$STATE_FILE" "$CN_STATE_DIR/watcher-${TARGET}.pid"
     fi
 fi
