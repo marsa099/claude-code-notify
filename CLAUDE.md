@@ -41,12 +41,13 @@ There is exactly one active styled notification at a time, identified by a
 fixed `CN_NOTIF_ID` so every send replaces the previous one. Per-instance
 state lives in `$CN_STATE_DIR` (`/tmp/claude-permissions/<pane-or-pty-id>`).
 A pointer file `.last-navigate` tracks which instance is currently shown.
-When the dunst backend is in use, every active-notification render also spawns
-a backgrounded `dunstify` listener (PID tracked in `.listener.pid`) that
-blocks until the user picks an action and then dispatches to
-`scripts/respond.sh|navigate.sh|goto.sh`. On the generic backend the listener
-is skipped and keybinding hint text is rendered into the notification body
-instead.
+When an actions-capable backend is in use (`dunst` or `mako`), every
+active-notification render also spawns a backgrounded listener (PID tracked
+in `.listener.pid`) — `dunstify --action=...` on dunst, `notify-send --wait
+-A ...` on mako — that blocks until the user picks an action and then
+dispatches to `scripts/respond.sh|navigate.sh|goto.sh`. On the generic
+backend the listener is skipped and keybinding hint text is rendered into
+the notification body instead.
 
 ## Conventions
 
@@ -60,7 +61,9 @@ instead.
 - **State files** are tiny `key=value` lines parsed with `grep | cut`. Keep
   them that way; don't reach for jq.
 - **No new runtime deps without strong reason.** Current deps are bash 4+,
-  jq, a notification daemon, and (optionally) tmux / wtype / xdotool.
+  jq, a notification daemon (dunst, mako, or any libnotify-compatible), and
+  (optionally) tmux / wtype / xdotool. The mako backend additionally needs
+  libnotify 0.8+ (`notify-send --wait`) and `gdbus` (from `glib`).
 - **Keep code lean.** No comments that restate the code. Add a comment only
   when the *why* is non-obvious (e.g., the self-kill avoidance in
   `cn_notify_actions`).
@@ -89,11 +92,14 @@ daemon. There are two install paths and they must both keep working:
   `$out/bin` (`claude-notify-permission-request`, `…-post-tool-use`,
   `…-notification`, `…-cleanup-instance`, `…-navigate`, `…-goto`,
   `…-respond`, `…-setup`). Wrappers set `CN_DIR` and `--prefix PATH` with
-  `jq coreutils gnugrep tmux procps`. Updates: `nix profile upgrade`
-  (standalone) or `nixos-rebuild switch` after bumping the flake input. If
-  you add a new hook/script that needs to run as a wrapped binary, add a
-  matching `makeWrapper` line in `flake.nix`. If you add a new runtime
-  command, add it to `makeBinPath`.
+  `jq coreutils gnugrep tmux procps libnotify glib` (libnotify provides
+  `notify-send` for the mako backend; glib provides `gdbus` for closing
+  notifications on mako). `dunstify` is NOT on the wrapper PATH — the dunst
+  backend relies on the system-installed `dunstify` (same as the daemon).
+  Updates: `nix profile upgrade` (standalone) or `nixos-rebuild switch`
+  after bumping the flake input. If you add a new hook/script that needs to
+  run as a wrapped binary, add a matching `makeWrapper` line in
+  `flake.nix`. If you add a new runtime command, add it to `makeBinPath`.
 - **Other Linux (manual)**: `install.sh` copies `lib/`, `hooks/`,
   `scripts/`, `icons/` to `~/.config/claude-notify/`, chmods the scripts,
   and merges hook entries into `~/.claude/settings.json`. Updates: re-run
@@ -103,11 +109,23 @@ daemon. There are two install paths and they must both keep working:
   `install.sh` copies it (the current globs cover `*.sh` and the listed
   dirs).
 
-`dunstify` is the only backend that supports clickable action buttons, so
-the listener mechanism is gated on `CN_NOTIFY_BACKEND=dunst`. The generic
-fallback (`notify-send`) renders keybinding hint text into the body and
-relies on the user binding `scripts/respond.sh|navigate.sh|goto.sh` in
-their WM. Both flows must be preserved.
+Two actions-capable backends are supported: `dunst` (actions via context
+menu / `do_action`) and `mako` (inline buttons). The listener mechanism is
+gated on `cn_actions_supported`. The generic `notify-send` fallback
+renders keybinding hint text into the body and relies on the user binding
+`scripts/respond.sh|navigate.sh|goto.sh` in their WM. All three flows
+must be preserved.
+
+### Mako caveats
+
+- `notify-send --wait` with action handling requires libnotify 0.8+ (2022).
+  Older systems will simply never print an action key, so clicks won't
+  dispatch — document that we need 0.8+.
+- mako closes the notification itself on action invocation, so
+  `cn_notify_close` only needs to fire for replace/cleanup flows. The
+  implementation uses the portable `gdbus CloseNotification` call.
+- The same fixed `CN_NOTIF_ID` is passed via `-r`, so mako replaces in
+  place just like dunst.
 
 ## Useful one-liners
 

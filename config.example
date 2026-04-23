@@ -1,9 +1,10 @@
 # claude-code-notify configuration
 # Copy to ~/.config/claude-notify/config and edit to match your setup.
 
-# Notification backend: dunst | generic
-# dunst: full support (persistent, close, replace, icons)
-# generic: basic notify-send (no close/replace, limited functionality)
+# Notification backend: dunst | mako | generic
+# dunst:   clickable actions via context menu (or mouse_left_click = do_action)
+# mako:    inline clickable action buttons (requires libnotify 0.8+ for --wait)
+# generic: basic notify-send, no actions — relies on WM keybindings
 CN_NOTIFY_BACKEND=dunst
 
 # Window manager: niri | sway | hyprland | none

@@ -19,7 +19,10 @@ When Claude Code needs permission to run a tool, you get a styled notification w
 
 - **Linux** (Wayland or X11)
 - **bash** 4+, **jq**
-- **Notification daemon**: dunst (recommended — full support including clickable action buttons) or any libnotify-compatible daemon (basic support, keybindings only)
+- **Notification daemon**:
+  - **mako** (recommended on Wayland) — inline clickable action buttons. Needs **libnotify 0.8+** for `notify-send --wait`, plus `gdbus` (from `glib`) for closing notifications.
+  - **dunst** — clickable actions via context menu (right-click) or via `mouse_left_click = do_action`.
+  - Any other libnotify-compatible daemon — basic mode, no actions (falls back to WM keybindings).
 - **Optional**: tmux (multi-instance), wtype or xdotool (respond from outside terminal)
 
 ### Supported window managers
@@ -125,27 +128,47 @@ CN_KEY_GOTO="Ctrl+Super+O"
 
 There are two ways to respond, and you can use either or both.
 
-### 1. Inline action buttons (dunst only, default)
+### 1. Inline action buttons
 
-On the dunst backend the notification ships with clickable actions: **Allow**,
-**Always Allow**, **Deny**, **Next**, **Go to** (or **Yes** / **No** for
-yes/no prompts; **Go to** / **Next** for waiting-for-input prompts).
+The notification carries the actions **Allow**, **Always Allow**, **Deny**,
+**Next**, **Go to** (or **Yes** / **No** for yes/no prompts; **Go to** /
+**Next** for waiting-for-input prompts). How they're surfaced depends on your
+daemon:
 
-How buttons surface depends on your `dunstrc`. Common setups:
-
-- Default dunst — actions are accessible via the **context menu** (right click
-  by default, or `dunstctl context`).
-- For a one-click "Allow" experience, bind the default mouse action to
+- **mako** (`CN_NOTIFY_BACKEND=mako`) — buttons render **inline** in the
+  notification and are one-click. This is the most frictionless setup on
+  Wayland. Requires libnotify 0.8+ (for `notify-send --wait`).
+- **dunst** (`CN_NOTIFY_BACKEND=dunst`) — dunst does **not** draw inline
+  buttons. Actions live in the context menu (right click, or `dunstctl
+  context`). For one-click "Allow", bind the default mouse action to
   `do_action`:
   ```
   # ~/.config/dunst/dunstrc
   mouse_left_click = do_action, close_current
   ```
-- Some launchers (e.g. `rofi -dmenu`) integrate via `dunstctl context` for a
-  pop-up picker.
+- **generic** (any other libnotify daemon) — buttons aren't supported; use
+  keybindings instead.
 
-When the active backend is `generic` (any non-dunst libnotify daemon),
-buttons aren't supported — use keybindings instead.
+#### Switching from dunst to mako
+
+1. Install mako and libnotify 0.8+ via your package manager. On NixOS, this
+   usually means `environment.systemPackages = [ pkgs.mako pkgs.libnotify ]`
+   (libnotify is typically already pulled in by your DE).
+2. Stop dunst and start mako (mako expects D-Bus activation or a user
+   service):
+   ```bash
+   systemctl --user disable --now dunst.service 2>/dev/null || true
+   systemctl --user enable --now mako.service
+   ```
+   If you start mako from your compositor config (niri/sway/Hyprland spawn),
+   make sure dunst isn't also started from there.
+3. Set `CN_NOTIFY_BACKEND=mako` in `~/.config/claude-notify/config` (create
+   it if it doesn't exist — see `config.example`).
+4. No restart of Claude Code needed — hooks re-source the config on every
+   event.
+
+mako renders action buttons inline by default; no extra mako config is
+needed.
 
 ### 2. Global WM keybindings (optional, fallback)
 
@@ -163,8 +186,8 @@ Hyprland.
 | Go to | `Ctrl+Super+O` | Focus the Claude instance |
 
 The labels above are displayed inside the notification body **only** on the
-`generic` backend (since dunst already shows them as buttons). Override them
-in `~/.config/claude-notify/config` via `CN_KEY_*`.
+`generic` backend (since dunst and mako already expose them as actions).
+Override them in `~/.config/claude-notify/config` via `CN_KEY_*`.
 
 ## How it works
 
@@ -174,7 +197,7 @@ Claude Code fires hook events that trigger shell scripts:
 2. **PostToolUse** fires after a tool completes. The hook cleans up the notification and promotes the next pending instance.
 3. **Notification** is Claude Code's built-in notification (delayed ~8s). The hook suppresses it when a styled permission notification is already showing.
 4. The **background watcher** monitors the tmux pane for the permission prompt disappearing — handling the case where the user responds directly in the TUI.
-5. On dunst, every active-notification render also spawns a backgrounded `dunstify` **action listener** (PID tracked in `/tmp/claude-permissions/.listener.pid`) that blocks until the user picks a button and then dispatches to `respond.sh` / `navigate.sh` / `goto.sh`. Replacing or closing the notification kills the previous listener so only one is ever live at a time.
+5. On dunst and mako, every active-notification render also spawns a backgrounded **action listener** (PID tracked in `/tmp/claude-permissions/.listener.pid`). It runs `dunstify --action=...` on dunst or `notify-send --wait -A ...` on mako (libnotify 0.8+), blocks until the user picks a button, and dispatches to `respond.sh` / `navigate.sh` / `goto.sh`. Replacing or closing the notification kills the previous listener so only one is ever live at a time.
 
 ## Adding a notification backend
 

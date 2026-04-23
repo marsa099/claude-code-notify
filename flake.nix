@@ -44,14 +44,14 @@
                 makeWrapper ${pkgs.bash}/bin/bash $out/bin/claude-notify-$hook \
                   --set CN_DIR "$out/share/claude-notify" \
                   --add-flags "$out/share/claude-notify/hooks/$hook.sh" \
-                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgs.coreutils pkgs.gnugrep pkgs.tmux pkgs.procps ]}
+                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgs.coreutils pkgs.gnugrep pkgs.tmux pkgs.procps pkgs.libnotify pkgs.glib ]}
               done
 
               for script in navigate goto respond; do
                 makeWrapper ${pkgs.bash}/bin/bash $out/bin/claude-notify-$script \
                   --set CN_DIR "$out/share/claude-notify" \
                   --add-flags "$out/share/claude-notify/scripts/$script.sh" \
-                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgs.coreutils pkgs.gnugrep pkgs.tmux pkgs.procps ]}
+                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgs.coreutils pkgs.gnugrep pkgs.tmux pkgs.procps pkgs.libnotify pkgs.glib ]}
               done
 
               # Setup script — only configures ~/.claude/settings.json

@@ -64,6 +64,9 @@ cn_notify() {
         dunst)
             dunstify "$title" "$body" -u "$urgency" -t "$timeout" -I "$CN_ICON" -r "$CN_NOTIF_ID" 2>>"$CN_LOG"
             ;;
+        mako)
+            notify-send "$title" "$body" -u "$urgency" -t "$timeout" -i "$CN_ICON" -r "$CN_NOTIF_ID" 2>>"$CN_LOG"
+            ;;
         *)
             notify-send "$title" "$body" -u "$urgency" -t "$timeout" -i "$CN_ICON" 2>/dev/null
             ;;
@@ -88,12 +91,22 @@ cn_notify_close() {
     cn_kill_listener
     case "$CN_NOTIFY_BACKEND" in
         dunst) dunstify -C "$CN_NOTIF_ID" 2>/dev/null ;;
+        mako)
+            gdbus call --session \
+                --dest org.freedesktop.Notifications \
+                --object-path /org/freedesktop/Notifications \
+                --method org.freedesktop.Notifications.CloseNotification \
+                "$CN_NOTIF_ID" >/dev/null 2>&1
+            ;;
     esac
 }
 
 # Returns 0 if the active backend supports clickable action buttons.
 cn_actions_supported() {
-    [ "$CN_NOTIFY_BACKEND" = "dunst" ]
+    case "$CN_NOTIFY_BACKEND" in
+        dunst|mako) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 # Stop the running action listener (if any), without closing the notification.
@@ -121,44 +134,75 @@ cn_notify_actions() {
 
     cn_kill_listener
 
-    local -a actions
+    # Build per-backend action flags. dunstify uses --action="key,Label"; the
+    # libnotify notify-send flag is -A key=Label. Both print the chosen key
+    # to stdout when the user activates an action.
+    local -a dunst_actions mako_actions
     case "$prompt_type" in
         yesno)
-            actions=(
+            dunst_actions=(
                 --action="allow,Yes"
                 --action="deny,No"
                 --action="next,Next"
                 --action="goto,Go to"
             )
+            mako_actions=(
+                -A "allow=Yes"
+                -A "deny=No"
+                -A "next=Next"
+                -A "goto=Go to"
+            )
             ;;
         input)
-            actions=(
+            dunst_actions=(
                 --action="goto,Go to"
                 --action="next,Next"
             )
+            mako_actions=(
+                -A "goto=Go to"
+                -A "next=Next"
+            )
             ;;
         *)
-            actions=(
+            dunst_actions=(
                 --action="allow,Allow"
                 --action="always,Always Allow"
                 --action="deny,Deny"
                 --action="next,Next"
                 --action="goto,Go to"
             )
+            mako_actions=(
+                -A "allow=Allow"
+                -A "always=Always Allow"
+                -A "deny=Deny"
+                -A "next=Next"
+                -A "goto=Go to"
+            )
             ;;
     esac
 
-    # Spawn the listener: dunstify blocks until the user picks an action or
-    # the notification is closed/replaced, then prints the chosen key on
+    # Spawn the listener: the notifier blocks until the user picks an action
+    # or the notification is closed/replaced, then prints the chosen key on
     # stdout. We dispatch that to the matching script. The listener's PID is
     # tracked so cleanup/replace flows can kill it; we drop the PID file
     # before dispatching so the dispatched script doesn't kill its own parent
     # shell when it calls cn_notify_close.
     (
         local action self_pid=$BASHPID
-        action=$(dunstify "$title" "$body" \
-            -u critical -t 0 -I "$CN_ICON" -r "$CN_NOTIF_ID" \
-            "${actions[@]}" 2>>"$CN_LOG")
+        case "$CN_NOTIFY_BACKEND" in
+            dunst)
+                action=$(dunstify "$title" "$body" \
+                    -u critical -t 0 -I "$CN_ICON" -r "$CN_NOTIF_ID" \
+                    "${dunst_actions[@]}" 2>>"$CN_LOG")
+                ;;
+            mako)
+                # notify-send --wait blocks until the notification closes
+                # and prints the invoked action key on stdout (libnotify 0.8+).
+                action=$(notify-send "$title" "$body" \
+                    -u critical -t 0 -i "$CN_ICON" -r "$CN_NOTIF_ID" --wait \
+                    "${mako_actions[@]}" 2>>"$CN_LOG")
+                ;;
+        esac
         if [ -f "$CN_LISTENER_PID_FILE" ] && \
            [ "$(cat "$CN_LISTENER_PID_FILE" 2>/dev/null)" = "$self_pid" ]; then
             rm -f "$CN_LISTENER_PID_FILE"
