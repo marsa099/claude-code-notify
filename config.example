@@ -20,8 +20,10 @@ CN_TERMINAL_APP_ID=com.mitchellh.ghostty
 # wtype: Wayland (default), xdotool: X11
 CN_INPUT_METHOD=wtype
 
-# Keybinding labels shown in notifications
-# Change these to match your actual WM keybindings
+# Keybinding labels shown in notifications.
+# Only rendered when the active backend can NOT show inline action buttons
+# (i.e., CN_NOTIFY_BACKEND=generic). On dunst the notification exposes
+# clickable buttons instead, so these values are unused.
 CN_KEY_ALLOW="Ctrl+Super+Y"
 CN_KEY_ALWAYS_ALLOW="Ctrl+Super+A"
 CN_KEY_DENY="Ctrl+Super+N"

@@ -8,8 +8,9 @@ When Claude Code needs permission to run a tool, you get a styled notification w
 
 - Instant notification on permission requests (bypasses Claude Code's ~8s notification delay)
 - Styled notifications showing tool name, command, file path, and description
+- **Inline action buttons** on dunst — Allow / Always Allow / Deny / Next / Go to — no keybindings required
+- Optional global keybindings as an alternative or fallback (and the only option on non-dunst backends)
 - Multi-instance support: track and cycle through multiple pending permissions
-- Global keybindings: Allow, Always Allow, Deny, Navigate, Go to instance
 - Cross-session tmux navigation
 - Smart suppression: no notification when the terminal is focused and visible
 - Background watcher for cleanup when prompts are answered directly in the TUI
@@ -18,7 +19,7 @@ When Claude Code needs permission to run a tool, you get a styled notification w
 
 - **Linux** (Wayland or X11)
 - **bash** 4+, **jq**
-- **Notification daemon**: dunst (recommended, full support) or any libnotify-compatible daemon (basic support)
+- **Notification daemon**: dunst (recommended — full support including clickable action buttons) or any libnotify-compatible daemon (basic support, keybindings only)
 - **Optional**: tmux (multi-instance), wtype or xdotool (respond from outside terminal)
 
 ### Supported window managers
@@ -60,7 +61,7 @@ environment.systemPackages = [
 ];
 ```
 
-Rebuild. Then configure Claude Code's hooks — either run `claude-notify-setup` or add them manually to `~/.claude/settings.json`:
+Rebuild (and on later updates, bump the flake input and `nixos-rebuild switch` — or `nix profile upgrade` for the standalone flow). Then configure Claude Code's hooks — either run `claude-notify-setup` or add them manually to `~/.claude/settings.json`:
 
 ```json
 {
@@ -72,7 +73,7 @@ Rebuild. Then configure Claude Code's hooks — either run `claude-notify-setup`
 }
 ```
 
-Finally, add WM keybindings using the wrapper binaries (e.g., `claude-notify-navigate`). See `keybindings/` for ready-to-use examples.
+On dunst that's all you need — the notifications already carry clickable buttons. WM keybindings are optional (and required only on non-dunst daemons); see `keybindings/` for ready-to-use examples that bind the wrapper binaries (e.g. `claude-notify-respond 1`, `claude-notify-navigate`).
 
 ### Standalone Nix
 
@@ -89,7 +90,9 @@ cd claude-code-notify
 bash install.sh
 ```
 
-The install script copies scripts to `~/.config/claude-notify/` and configures hooks in `~/.claude/settings.json`. Then add WM keybindings — see `keybindings/` for examples.
+The install script copies scripts to `~/.config/claude-notify/` and configures hooks in `~/.claude/settings.json`. To update later, `git pull` and re-run `bash install.sh` from the same checkout — it overwrites the installed scripts in place and skips `settings.json` if hooks are already wired up.
+
+On dunst the notifications are clickable out of the box. On other daemons (or if you prefer keys), add WM keybindings — see `keybindings/` for examples.
 
 ## Configuration
 
@@ -118,17 +121,50 @@ CN_KEY_NEXT="Ctrl+Super+P"
 CN_KEY_GOTO="Ctrl+Super+O"
 ```
 
-## Keybindings
+## Responding to a notification
 
-The notification shows keybinding hints. You need to configure matching keybindings in your WM. See `keybindings/` for ready-to-use examples for niri, sway, and Hyprland.
+There are two ways to respond, and you can use either or both.
 
-| Action | Default | Description |
+### 1. Inline action buttons (dunst only, default)
+
+On the dunst backend the notification ships with clickable actions: **Allow**,
+**Always Allow**, **Deny**, **Next**, **Go to** (or **Yes** / **No** for
+yes/no prompts; **Go to** / **Next** for waiting-for-input prompts).
+
+How buttons surface depends on your `dunstrc`. Common setups:
+
+- Default dunst — actions are accessible via the **context menu** (right click
+  by default, or `dunstctl context`).
+- For a one-click "Allow" experience, bind the default mouse action to
+  `do_action`:
+  ```
+  # ~/.config/dunst/dunstrc
+  mouse_left_click = do_action, close_current
+  ```
+- Some launchers (e.g. `rofi -dmenu`) integrate via `dunstctl context` for a
+  pop-up picker.
+
+When the active backend is `generic` (any non-dunst libnotify daemon),
+buttons aren't supported — use keybindings instead.
+
+### 2. Global WM keybindings (optional, fallback)
+
+You can configure your WM to invoke the same scripts via keybindings. This is
+required on the `generic` backend and useful as a faster alternative on
+dunst. See `keybindings/` for ready-to-use examples for niri, sway, and
+Hyprland.
+
+| Action | Default key | Description |
 |---|---|---|
 | Allow | `Ctrl+Super+Y` | Accept the permission request |
 | Always Allow | `Ctrl+Super+A` | Always allow this tool |
 | Deny | `Ctrl+Super+N` | Deny the request |
 | Next | `Ctrl+Super+P` | Cycle to next pending notification |
 | Go to | `Ctrl+Super+O` | Focus the Claude instance |
+
+The labels above are displayed inside the notification body **only** on the
+`generic` backend (since dunst already shows them as buttons). Override them
+in `~/.config/claude-notify/config` via `CN_KEY_*`.
 
 ## How it works
 
@@ -138,6 +174,7 @@ Claude Code fires hook events that trigger shell scripts:
 2. **PostToolUse** fires after a tool completes. The hook cleans up the notification and promotes the next pending instance.
 3. **Notification** is Claude Code's built-in notification (delayed ~8s). The hook suppresses it when a styled permission notification is already showing.
 4. The **background watcher** monitors the tmux pane for the permission prompt disappearing — handling the case where the user responds directly in the TUI.
+5. On dunst, every active-notification render also spawns a backgrounded `dunstify` **action listener** (PID tracked in `/tmp/claude-permissions/.listener.pid`) that blocks until the user picks a button and then dispatches to `respond.sh` / `navigate.sh` / `goto.sh`. Replacing or closing the notification kills the previous listener so only one is ever live at a time.
 
 ## Adding a notification backend
 
@@ -146,6 +183,13 @@ To add support for a new notification daemon, edit `lib/common.sh` and add a cas
 - Sending notifications with urgency and timeout
 - Returning a notification ID (for close/replace support)
 - Closing notifications by ID
+
+To also enable inline action buttons on the new backend, extend
+`cn_actions_supported` to return 0 for it and add a backend-specific branch
+to `cn_notify_actions` (the dunst path is the reference implementation —
+spawn a backgrounded listener, write its PID to `$CN_LISTENER_PID_FILE`,
+clear that PID file before dispatching to a script so the dispatched
+`cn_notify_close` doesn't kill its own parent shell).
 
 ## License
 

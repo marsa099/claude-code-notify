@@ -97,7 +97,7 @@ LAST_NAV="$CN_STATE_DIR/.last-navigate"
 if [ ! -f "$LAST_NAV" ]; then
     # No active notification — this input becomes the active one
     BODY=$(cn_build_full_notification "$INPUT_STATE_ID")
-    cn_notify "> Claude - ${LABEL:-notification}" "$BODY" critical 0
+    cn_notify_actions "> Claude - ${LABEL:-notification}" "$BODY" "input"
     [ -n "$INPUT_STATE_ID" ] && echo "$INPUT_STATE_ID" > "$LAST_NAV"
     cn_log "[notification-hook] created active notification"
 else
@@ -105,8 +105,10 @@ else
     ACTIVE_ID=$(cat "$LAST_NAV")
     ACTIVE_LABEL=$(grep '^label=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
     [ -z "$ACTIVE_LABEL" ] && ACTIVE_LABEL="claude:?"
+    ACTIVE_PROMPT_TYPE=$(grep '^prompt_type=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
+    [ -z "$ACTIVE_PROMPT_TYPE" ] && ACTIVE_PROMPT_TYPE="permission"
     BODY=$(cn_build_full_notification "$ACTIVE_ID")
-    cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0
+    cn_notify_actions "> Claude - $ACTIVE_LABEL" "$BODY" "$ACTIVE_PROMPT_TYPE"
     cn_log "[notification-hook] updated active notification active=$ACTIVE_ID"
 fi
 

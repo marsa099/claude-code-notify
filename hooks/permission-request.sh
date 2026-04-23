@@ -58,15 +58,17 @@ else
     LAST_NAV="$CN_STATE_DIR/.last-navigate"
     if [ ! -f "$LAST_NAV" ]; then
         BODY=$(cn_build_full_notification "$ID")
-        cn_notify "> Claude - $LABEL" "$BODY" critical 0
+        cn_notify_actions "> Claude - $LABEL" "$BODY" "permission"
         echo "$ID" > "$LAST_NAV"
         cn_log "[permission-request] created active notification"
     else
         ACTIVE_ID=$(cat "$LAST_NAV")
         ACTIVE_LABEL=$(grep '^label=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
         [ -z "$ACTIVE_LABEL" ] && ACTIVE_LABEL="claude:?"
+        ACTIVE_PROMPT_TYPE=$(grep '^prompt_type=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
+        [ -z "$ACTIVE_PROMPT_TYPE" ] && ACTIVE_PROMPT_TYPE="permission"
         BODY=$(cn_build_full_notification "$ACTIVE_ID")
-        cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0
+        cn_notify_actions "> Claude - $ACTIVE_LABEL" "$BODY" "$ACTIVE_PROMPT_TYPE"
         cn_log "[permission-request] updated active notification active=$ACTIVE_ID"
     fi
 fi

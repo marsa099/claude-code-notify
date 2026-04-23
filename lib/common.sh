@@ -9,6 +9,7 @@ CN_STATE_DIR="/tmp/claude-permissions"
 CN_LOG="$HOME/.cache/claude/hooks.log"
 CN_ICON="${CN_ICON:-$CN_DIR/icons/claude-code.png}"
 CN_NOTIF_ID=999999  # Fixed notification ID — all notifications reuse this to avoid races
+CN_LISTENER_PID_FILE="$CN_STATE_DIR/.listener.pid"
 
 # Defaults (overridden by config file)
 CN_NOTIFY_BACKEND="${CN_NOTIFY_BACKEND:-dunst}"
@@ -84,9 +85,93 @@ cn_notify_transient() {
 
 # Close the tracked notification
 cn_notify_close() {
+    cn_kill_listener
     case "$CN_NOTIFY_BACKEND" in
         dunst) dunstify -C "$CN_NOTIF_ID" 2>/dev/null ;;
     esac
+}
+
+# Returns 0 if the active backend supports clickable action buttons.
+cn_actions_supported() {
+    [ "$CN_NOTIFY_BACKEND" = "dunst" ]
+}
+
+# Stop the running action listener (if any), without closing the notification.
+cn_kill_listener() {
+    if [ -f "$CN_LISTENER_PID_FILE" ]; then
+        local pid
+        pid=$(cat "$CN_LISTENER_PID_FILE" 2>/dev/null)
+        [ -n "$pid" ] && kill "$pid" 2>/dev/null
+        rm -f "$CN_LISTENER_PID_FILE"
+    fi
+}
+
+# Send the active permission/input notification with clickable buttons (dunst).
+# Falls back to plain cn_notify on backends without action support — callers
+# should include keybinding hints in the body in that case (handled by
+# cn_build_full_notification).
+# Args: title body prompt_type
+cn_notify_actions() {
+    local title="$1" body="$2" prompt_type="${3:-permission}"
+
+    if ! cn_actions_supported; then
+        cn_notify "$title" "$body" critical 0
+        return
+    fi
+
+    cn_kill_listener
+
+    local -a actions
+    case "$prompt_type" in
+        yesno)
+            actions=(
+                --action="allow,Yes"
+                --action="deny,No"
+                --action="next,Next"
+                --action="goto,Go to"
+            )
+            ;;
+        input)
+            actions=(
+                --action="goto,Go to"
+                --action="next,Next"
+            )
+            ;;
+        *)
+            actions=(
+                --action="allow,Allow"
+                --action="always,Always Allow"
+                --action="deny,Deny"
+                --action="next,Next"
+                --action="goto,Go to"
+            )
+            ;;
+    esac
+
+    # Spawn the listener: dunstify blocks until the user picks an action or
+    # the notification is closed/replaced, then prints the chosen key on
+    # stdout. We dispatch that to the matching script. The listener's PID is
+    # tracked so cleanup/replace flows can kill it; we drop the PID file
+    # before dispatching so the dispatched script doesn't kill its own parent
+    # shell when it calls cn_notify_close.
+    (
+        local action self_pid=$BASHPID
+        action=$(dunstify "$title" "$body" \
+            -u critical -t 0 -I "$CN_ICON" -r "$CN_NOTIF_ID" \
+            "${actions[@]}" 2>>"$CN_LOG")
+        if [ -f "$CN_LISTENER_PID_FILE" ] && \
+           [ "$(cat "$CN_LISTENER_PID_FILE" 2>/dev/null)" = "$self_pid" ]; then
+            rm -f "$CN_LISTENER_PID_FILE"
+        fi
+        case "$action" in
+            allow)  bash "$CN_DIR/scripts/respond.sh" 1 ;;
+            always) bash "$CN_DIR/scripts/respond.sh" 2 ;;
+            deny)   bash "$CN_DIR/scripts/respond.sh" 3 ;;
+            next)   bash "$CN_DIR/scripts/navigate.sh" ;;
+            goto)   bash "$CN_DIR/scripts/goto.sh" ;;
+        esac
+    ) &>/dev/null &
+    echo $! > "$CN_LISTENER_PID_FILE"
 }
 
 # --- WM backend ---
@@ -288,10 +373,10 @@ cn_build_full_notification() {
         local msg
         msg=$(grep '^message=' "$state_file" 2>/dev/null | cut -d= -f2-)
         body="<i>${msg:-Waiting for input}</i>"
-        body="$body\n\nGo to <b>($CN_KEY_GOTO)</b>\nNext <b>($CN_KEY_NEXT)</b>"
+        cn_actions_supported || body="$body\n\nGo to <b>($CN_KEY_GOTO)</b>\nNext <b>($CN_KEY_NEXT)</b>"
     else
         body=$(cn_build_tool_body "$id")
-        body="$body\n\n$(cn_keybinding_text "$prompt_type")"
+        cn_actions_supported || body="$body\n\n$(cn_keybinding_text "$prompt_type")"
     fi
     local total
     total=$(find "$CN_STATE_DIR" -maxdepth 1 -type f ! -name '.*' ! -name '*-*' ! -name '*.json' 2>/dev/null | wc -l)

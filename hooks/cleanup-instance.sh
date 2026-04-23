@@ -40,9 +40,11 @@ echo "$TARGET_ID" > "$NAV"
 
 TARGET_LABEL=$(grep '^label=' "$CN_STATE_DIR/$TARGET_ID" 2>/dev/null | cut -d= -f2)
 [ -z "$TARGET_LABEL" ] && TARGET_LABEL="claude:?"
+TARGET_PROMPT_TYPE=$(grep '^prompt_type=' "$CN_STATE_DIR/$TARGET_ID" 2>/dev/null | cut -d= -f2)
+[ -z "$TARGET_PROMPT_TYPE" ] && TARGET_PROMPT_TYPE="permission"
 
 BODY=$(cn_build_full_notification "$TARGET_ID")
-cn_notify "> Claude - $TARGET_LABEL" "$BODY" critical 0
+cn_notify_actions "> Claude - $TARGET_LABEL" "$BODY" "$TARGET_PROMPT_TYPE"
 
 total=$(echo "$REMAINING" | wc -l)
 cn_log "[cleanup] instance=$ID promoted=$TARGET_ID remaining=$total"

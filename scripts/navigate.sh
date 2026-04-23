@@ -35,8 +35,10 @@ echo "$TARGET" > "$LAST_NAV_FILE"
 local_state="$CN_STATE_DIR/$TARGET"
 label=$(grep '^label=' "$local_state" 2>/dev/null | cut -d= -f2)
 [ -z "$label" ] && label="claude:?"
+prompt_type=$(grep '^prompt_type=' "$local_state" 2>/dev/null | cut -d= -f2)
+[ -z "$prompt_type" ] && prompt_type="permission"
 
 body=$(cn_build_full_notification "$TARGET")
-cn_notify "> Claude - $label" "$body" critical 0
+cn_notify_actions "> Claude - $label" "$body" "$prompt_type"
 
 cn_log "[navigate] selected target=$TARGET (${#PANES[@]} pending)"
