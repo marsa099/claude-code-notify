@@ -74,6 +74,14 @@ Rebuild. Then configure Claude Code's hooks — either run `claude-notify-setup`
 
 Finally, add WM keybindings using the wrapper binaries (e.g., `claude-notify-navigate`). See `keybindings/` for ready-to-use examples.
 
+> **Avoid duplicate notifications.** Claude Code ships its own built-in desktop notifications (delivered through the terminal, e.g. kitty), which fire *in addition* to these hooks — so you'd see two popups per event. Disable the built-in channel so these hooks are the only source:
+>
+> ```json
+> { "preferredNotifChannel": "notifications_disabled" }
+> ```
+>
+> Add it to `~/.claude/settings.json`. Hooks fire independently of this setting, so the styled notifications keep working.
+
 ### Standalone Nix
 
 ```bash
