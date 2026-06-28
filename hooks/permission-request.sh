@@ -96,4 +96,24 @@ if [ "$TYPE" = "tmux" ] && [ -n "$PANE" ]; then
         rm -f "$WATCHER_PID_FILE"
     ) &>/dev/null &
     echo $! > "$WATCHER_PID_FILE"
+elif [ "$TYPE" = "direct" ] && [ -n "$TERMINAL_WID" ]; then
+    # Direct (non-tmux, e.g. kitty): there's no pane to scrape, so clean up when
+    # the instance's window gets focused — i.e. you've turned to it to answer.
+    # Covers the denial case (PostToolUse only fires on accept). Answering via
+    # the keybindings instead is handled by respond.sh.
+    WATCHER_PID_FILE="$CN_STATE_DIR/watcher-${ID}.pid"
+    [ -f "$WATCHER_PID_FILE" ] && kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null
+    (
+        sleep 2
+        while [ -f "$CN_STATE_DIR/$ID" ]; do
+            if cn_wm_window_is_focused "$TERMINAL_WID"; then
+                [ -f "$CN_STATE_DIR/$ID" ] && bash "$CN_DIR/hooks/cleanup-instance.sh" "$ID"
+                cn_log "[permission-request] watcher: cleaned $ID (window focused) [direct]"
+                break
+            fi
+            sleep 2
+        done
+        rm -f "$WATCHER_PID_FILE"
+    ) &>/dev/null &
+    echo $! > "$WATCHER_PID_FILE"
 fi

@@ -32,9 +32,16 @@ cn_ts() { date '+%Y-%m-%dT%H:%M:%S.%3N'; }
 cn_log() { echo "$(cn_ts) $*" >> "$CN_LOG"; }
 
 # --- Instance ID ---
+# A stable, unique id per Claude instance. tmux: pane id. kitty (no tmux): the
+# kitty process+window, which survives even when the hook has no controlling tty
+# (hook subprocesses often don't, making the pts fallback unreliable). Other
+# terminals: the controlling pts. Must stay free of '-' and '.' so state files
+# pass the find filters in cn_pending_ids / cn_build_full_notification.
 cn_instance_id() {
     if [ -n "$TMUX_PANE" ]; then
         echo "${TMUX_PANE#%}"
+    elif [ -n "$KITTY_WINDOW_ID" ]; then
+        echo "k${KITTY_PID:-x}_${KITTY_WINDOW_ID}"
     else
         local pts_num
         pts_num=$(ps -o tty= -p $$ 2>/dev/null | tr -d ' ' | grep -oP 'pts/\K\d+')
@@ -142,12 +149,29 @@ cn_wm_focus_wid() {
     esac
 }
 
+# Return 0 if the given WM window id is currently focused. Used by the direct
+# (non-tmux) cleanup watchers — comparing the focused window to a stored id is
+# robust because it doesn't depend on the (possibly dead) hook PID tree.
+cn_wm_window_is_focused() {
+    local wid="$1"
+    [ -z "$wid" ] && return 1
+    [ "$(cn_wm_focused_wid)" = "$wid" ]
+}
+
 # Find the terminal window by walking the PID tree up to a WM window
 cn_wm_find_terminal_wid() {
     [ "$CN_WM_BACKEND" = "none" ] && return 1
     local windows
     windows=$(cn_wm_windows)
     [ -z "$windows" ] && return 1
+    # Fast path: kitty exposes its own process id, which the WM reports as the
+    # window's PID. Match it directly — robust even if the PID tree walk can't
+    # reach the terminal (e.g. a reparented hook subprocess).
+    if [ -n "$KITTY_PID" ]; then
+        local kwid
+        kwid=$(echo "$windows" | awk -v p="$KITTY_PID" '$2 == p {print $1; exit}')
+        [ -n "$kwid" ] && { echo "$kwid"; return 0; }
+    fi
     local pid=$$
     while [ "$pid" != "1" ] && [ -n "$pid" ] && [ "$pid" != "0" ]; do
         local wid

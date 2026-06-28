@@ -118,7 +118,10 @@ if [ -n "$INPUT_STATE_ID" ]; then
     (
         sleep 2
         while [ -f "$CN_STATE_DIR/$INPUT_STATE_ID" ]; do
-            if cn_should_skip_notification; then
+            # Direct (kitty): compare against the stored window id — robust even
+            # if the hook PID tree is gone. tmux: use the focus+visible check.
+            if { [ "$TYPE" = "direct" ] && cn_wm_window_is_focused "$TERMINAL_WID"; } \
+               || { [ "$TYPE" != "direct" ] && cn_should_skip_notification; }; then
                 bash "$CN_DIR/hooks/cleanup-instance.sh" "$INPUT_STATE_ID"
                 cn_log "[notification-hook] watcher: closed input notification for $INPUT_STATE_ID (terminal focused)"
                 break
