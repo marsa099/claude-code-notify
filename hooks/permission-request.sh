@@ -58,7 +58,7 @@ else
     LAST_NAV="$CN_STATE_DIR/.last-navigate"
     if [ ! -f "$LAST_NAV" ]; then
         BODY=$(cn_build_full_notification "$ID")
-        cn_notify "> Claude - $LABEL" "$BODY" critical 0
+        cn_notify "> Claude - $LABEL" "$BODY" critical "$CN_NOTIFY_TIMEOUT"
         echo "$ID" > "$LAST_NAV"
         cn_log "[permission-request] created active notification"
     else
@@ -66,7 +66,7 @@ else
         ACTIVE_LABEL=$(grep '^label=' "$CN_STATE_DIR/$ACTIVE_ID" 2>/dev/null | cut -d= -f2)
         [ -z "$ACTIVE_LABEL" ] && ACTIVE_LABEL="claude:?"
         BODY=$(cn_build_full_notification "$ACTIVE_ID")
-        cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical 0
+        cn_notify "> Claude - $ACTIVE_LABEL" "$BODY" critical "$CN_NOTIFY_TIMEOUT"
         cn_log "[permission-request] updated active notification active=$ACTIVE_ID"
     fi
 fi

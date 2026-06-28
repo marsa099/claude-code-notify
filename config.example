@@ -20,6 +20,11 @@ CN_TERMINAL_APP_ID=com.mitchellh.ghostty
 # wtype: Wayland (default), xdotool: X11
 CN_INPUT_METHOD=wtype
 
+# How long a notification popup stays on screen before auto-expiring, in ms.
+# The pending state persists after expiry (shown by a waybar indicator), so a
+# missed popup is not lost. Set 0 to keep popups until acted on (old behavior).
+CN_NOTIFY_TIMEOUT=5000
+
 # Keybinding labels shown in notifications
 # Change these to match your actual WM keybindings
 CN_KEY_ALLOW="Ctrl+Super+Y"

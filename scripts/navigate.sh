@@ -37,6 +37,6 @@ label=$(grep '^label=' "$local_state" 2>/dev/null | cut -d= -f2)
 [ -z "$label" ] && label="claude:?"
 
 body=$(cn_build_full_notification "$TARGET")
-cn_notify "> Claude - $label" "$body" critical 0
+cn_notify "> Claude - $label" "$body" critical "$CN_NOTIFY_TIMEOUT"
 
 cn_log "[navigate] selected target=$TARGET (${#PANES[@]} pending)"

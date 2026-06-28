@@ -15,6 +15,7 @@ CN_NOTIFY_BACKEND="${CN_NOTIFY_BACKEND:-dunst}"
 CN_WM_BACKEND="${CN_WM_BACKEND:-none}"
 CN_TERMINAL_APP_ID="${CN_TERMINAL_APP_ID:-com.mitchellh.ghostty}"
 CN_INPUT_METHOD="${CN_INPUT_METHOD:-wtype}"
+CN_NOTIFY_TIMEOUT="${CN_NOTIFY_TIMEOUT:-5000}"  # ms a popup stays before auto-expiring (state persists; 0 = never)
 CN_KEY_ALLOW="${CN_KEY_ALLOW:-Ctrl+Super+Y}"
 CN_KEY_ALWAYS_ALLOW="${CN_KEY_ALWAYS_ALLOW:-Ctrl+Super+A}"
 CN_KEY_DENY="${CN_KEY_DENY:-Ctrl+Super+N}"
@@ -58,7 +59,7 @@ cn_esc() {
 # Send a notification, always replacing the single tracked notification.
 # Args: title body [urgency] [timeout]
 cn_notify() {
-    local title="$1" body="$2" urgency="${3:-critical}" timeout="${4:-0}"
+    local title="$1" body="$2" urgency="${3:-critical}" timeout="${4:-$CN_NOTIFY_TIMEOUT}"
     case "$CN_NOTIFY_BACKEND" in
         dunst)
             dunstify "$title" "$body" -u "$urgency" -t "$timeout" -I "$CN_ICON" -r "$CN_NOTIF_ID" 2>>"$CN_LOG"
